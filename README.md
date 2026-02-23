@@ -22,6 +22,18 @@ DATABASE_URL=libsql://your-database-url.turso.io?authToken=your-auth-token
 
 ## Running Locally
 
+To run the backend in watch mode (hot reload), use [air](https://github.com/air-verse/air):
+
+```bash
+# Install air if you haven't already
+go install github.com/air-verse/air@latest
+
+# Run the project
+air
+```
+
+Or run normally:
+
 ```bash
 go run cmd/api/main.go
 ```
