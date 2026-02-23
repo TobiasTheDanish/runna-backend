@@ -32,6 +32,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/sessions", handler.CreateSession)
 	mux.HandleFunc("GET /api/sessions", handler.GetSessions)
+	mux.HandleFunc("GET /api/sessions/{id}", handler.GetSession)
+	mux.HandleFunc("PUT /api/sessions/{id}", handler.UpdateSession)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

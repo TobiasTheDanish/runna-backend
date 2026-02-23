@@ -119,3 +119,64 @@ func (db *DB) GetSessions(startDate, endDate time.Time) ([]models.Session, error
 
 	return sessions, nil
 }
+
+func (db *DB) GetSession(id int) (*models.Session, error) {
+	query := `
+		SELECT id, date, distance, duration, notes, created_at, updated_at
+		FROM sessions
+		WHERE id = ?
+	`
+
+	var session models.Session
+	err := db.conn.QueryRow(query, id).Scan(
+		&session.ID,
+		&session.Date,
+		&session.Distance,
+		&session.Duration,
+		&session.Notes,
+		&session.CreatedAt,
+		&session.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &session, nil
+}
+
+func (db *DB) UpdateSession(id int, req models.CreateSessionRequest) (*models.Session, error) {
+	query := `
+		UPDATE sessions
+		SET date = ?, distance = ?, duration = ?, notes = ?, updated_at = ?
+		WHERE id = ?
+		RETURNING id, date, distance, duration, notes, created_at, updated_at
+	`
+
+	now := time.Now()
+	var session models.Session
+
+	err := db.conn.QueryRow(
+		query,
+		req.Date,
+		req.Distance,
+		req.Duration,
+		req.Notes,
+		now,
+		id,
+	).Scan(
+		&session.ID,
+		&session.Date,
+		&session.Distance,
+		&session.Duration,
+		&session.Notes,
+		&session.CreatedAt,
+		&session.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &session, nil
+}
