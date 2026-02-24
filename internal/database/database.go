@@ -40,7 +40,16 @@ func (db *DB) Init() error {
 			notes TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
+		);
+
+		CREATE TABLE IF NOT EXISTS goals (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			target_distance REAL NOT NULL,
+			start_date DATETIME NOT NULL,
+			end_date DATETIME NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`
 	_, err := db.conn.Exec(query)
 	return err
