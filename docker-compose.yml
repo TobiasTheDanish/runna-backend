@@ -6,16 +6,16 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:4554"
+      - "4554:4554"
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - PORT=8080
+      - PORT=4554
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_VERIFY_TOKEN=${STRAVA_VERIFY_TOKEN}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4554/health"]
       interval: 30s
       timeout: 10s
       retries: 3
