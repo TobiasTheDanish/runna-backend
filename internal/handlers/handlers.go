@@ -11,11 +11,20 @@ import (
 )
 
 type Handler struct {
-	db *database.DB
+	db            *database.DB
+	stravaService interface {
+		ProcessWebhookEvent(event models.WebhookEvent) error
+	}
 }
 
 func New(db *database.DB) *Handler {
 	return &Handler{db: db}
+}
+
+func (h *Handler) SetStravaService(service interface {
+	ProcessWebhookEvent(event models.WebhookEvent) error
+}) {
+	h.stravaService = service
 }
 
 func (h *Handler) CreateSession(w http.ResponseWriter, r *http.Request) {

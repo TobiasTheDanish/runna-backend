@@ -38,6 +38,8 @@ func (db *DB) Init() error {
 			distance REAL NOT NULL,
 			duration INTEGER NOT NULL,
 			notes TEXT,
+			strava_activity_id INTEGER UNIQUE,
+			source TEXT DEFAULT 'manual',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
@@ -50,6 +52,17 @@ func (db *DB) Init() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS strava_connections (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER,
+			strava_athlete_id INTEGER NOT NULL UNIQUE,
+			access_token TEXT NOT NULL,
+			refresh_token TEXT NOT NULL,
+			token_expires_at DATETIME NOT NULL,
+			connected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_sync DATETIME
+		);
 	`
 	_, err := db.conn.Exec(query)
 	return err
@@ -57,9 +70,9 @@ func (db *DB) Init() error {
 
 func (db *DB) CreateSession(req models.CreateSessionRequest) (*models.Session, error) {
 	query := `
-		INSERT INTO sessions (date, distance, duration, notes, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		RETURNING id, date, distance, duration, notes, created_at, updated_at
+		INSERT INTO sessions (date, distance, duration, notes, source, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'manual', ?, ?)
+		RETURNING id, date, distance, duration, notes, strava_activity_id, source, created_at, updated_at
 	`
 
 	now := time.Now()
@@ -79,6 +92,8 @@ func (db *DB) CreateSession(req models.CreateSessionRequest) (*models.Session, e
 		&session.Distance,
 		&session.Duration,
 		&session.Notes,
+		&session.StravaActivityID,
+		&session.Source,
 		&session.CreatedAt,
 		&session.UpdatedAt,
 	)
@@ -92,7 +107,7 @@ func (db *DB) CreateSession(req models.CreateSessionRequest) (*models.Session, e
 
 func (db *DB) GetSessions(startDate, endDate time.Time) ([]models.Session, error) {
 	query := `
-		SELECT id, date, distance, duration, notes, created_at, updated_at
+		SELECT id, date, distance, duration, notes, strava_activity_id, source, created_at, updated_at
 		FROM sessions
 		WHERE date >= ? AND date <= ?
 		ORDER BY date DESC
@@ -113,6 +128,8 @@ func (db *DB) GetSessions(startDate, endDate time.Time) ([]models.Session, error
 			&session.Distance,
 			&session.Duration,
 			&session.Notes,
+			&session.StravaActivityID,
+			&session.Source,
 			&session.CreatedAt,
 			&session.UpdatedAt,
 		)
@@ -131,7 +148,7 @@ func (db *DB) GetSessions(startDate, endDate time.Time) ([]models.Session, error
 
 func (db *DB) GetSession(id int) (*models.Session, error) {
 	query := `
-		SELECT id, date, distance, duration, notes, created_at, updated_at
+		SELECT id, date, distance, duration, notes, strava_activity_id, source, created_at, updated_at
 		FROM sessions
 		WHERE id = ?
 	`
@@ -143,6 +160,8 @@ func (db *DB) GetSession(id int) (*models.Session, error) {
 		&session.Distance,
 		&session.Duration,
 		&session.Notes,
+		&session.StravaActivityID,
+		&session.Source,
 		&session.CreatedAt,
 		&session.UpdatedAt,
 	)
@@ -159,7 +178,7 @@ func (db *DB) UpdateSession(id int, req models.CreateSessionRequest) (*models.Se
 		UPDATE sessions
 		SET date = ?, distance = ?, duration = ?, notes = ?, updated_at = ?
 		WHERE id = ?
-		RETURNING id, date, distance, duration, notes, created_at, updated_at
+		RETURNING id, date, distance, duration, notes, strava_activity_id, source, created_at, updated_at
 	`
 
 	now := time.Now()
@@ -179,6 +198,8 @@ func (db *DB) UpdateSession(id int, req models.CreateSessionRequest) (*models.Se
 		&session.Distance,
 		&session.Duration,
 		&session.Notes,
+		&session.StravaActivityID,
+		&session.Source,
 		&session.CreatedAt,
 		&session.UpdatedAt,
 	)

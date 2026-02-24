@@ -9,6 +9,7 @@ import (
 
 	"github.com/thc/runna-backend/internal/database"
 	"github.com/thc/runna-backend/internal/handlers"
+	"github.com/thc/runna-backend/internal/services"
 )
 
 func main() {
@@ -29,6 +30,10 @@ func main() {
 
 	handler := handlers.New(db)
 
+	// Initialize Strava service
+	stravaService := services.NewStravaService(db)
+	handler.SetStravaService(stravaService)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/sessions", handler.CreateSession)
 	mux.HandleFunc("GET /api/sessions", handler.GetSessions)
@@ -40,6 +45,15 @@ func main() {
 	mux.HandleFunc("GET /api/goals", handler.GetGoals)
 	mux.HandleFunc("GET /api/goals/{id}", handler.GetGoal)
 	mux.HandleFunc("DELETE /api/goals/{id}", handler.DeleteGoal)
+
+	// Strava webhook routes
+	mux.HandleFunc("GET /api/webhooks/strava", handler.VerifyWebhook)
+	mux.HandleFunc("POST /api/webhooks/strava", handler.ReceiveWebhook)
+
+	// Strava OAuth routes
+	mux.HandleFunc("POST /api/strava/connect", handler.ConnectStrava)
+	mux.HandleFunc("GET /api/strava/status", handler.GetStravaStatus)
+	mux.HandleFunc("DELETE /api/strava/disconnect", handler.DisconnectStrava)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
