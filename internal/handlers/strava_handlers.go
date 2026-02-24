@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/thc/runna-backend/internal/crypto"
 	"github.com/thc/runna-backend/internal/models"
 	"github.com/thc/runna-backend/internal/services"
 )
@@ -28,27 +30,50 @@ func (h *Handler) ConnectStrava(w http.ResponseWriter, r *http.Request) {
 	client := services.NewStravaClient()
 	tokenResp, err := client.ExchangeToken(req.Code)
 	if err != nil {
-		log.Printf("Failed to exchange token: %v", err)
+		log.Printf("[ERROR] ConnectStrava: Failed to exchange token: %v", err)
 		http.Error(w, "Failed to connect to Strava", http.StatusInternalServerError)
 		return
 	}
 
-	// Store connection in database
+	// Get encryption key
+	encryptionKey := os.Getenv("ENCRYPTION_KEY")
+	if encryptionKey == "" {
+		log.Printf("[ERROR] ConnectStrava: ENCRYPTION_KEY not set")
+		http.Error(w, "Server configuration error", http.StatusInternalServerError)
+		return
+	}
+
+	// Encrypt tokens before storage
+	encryptedAccessToken, err := crypto.Encrypt(tokenResp.AccessToken, encryptionKey)
+	if err != nil {
+		log.Printf("[ERROR] ConnectStrava: Failed to encrypt access token: %v", err)
+		http.Error(w, "Failed to store connection", http.StatusInternalServerError)
+		return
+	}
+
+	encryptedRefreshToken, err := crypto.Encrypt(tokenResp.RefreshToken, encryptionKey)
+	if err != nil {
+		log.Printf("[ERROR] ConnectStrava: Failed to encrypt refresh token: %v", err)
+		http.Error(w, "Failed to store connection", http.StatusInternalServerError)
+		return
+	}
+
+	// Store connection in database with encrypted tokens
 	conn := models.StravaConnection{
 		StravaAthleteID: tokenResp.Athlete.ID,
-		AccessToken:     tokenResp.AccessToken,
-		RefreshToken:    tokenResp.RefreshToken,
+		AccessToken:     encryptedAccessToken,
+		RefreshToken:    encryptedRefreshToken,
 		TokenExpiresAt:  time.Unix(tokenResp.ExpiresAt, 0),
 	}
 
 	createdConn, err := h.db.CreateStravaConnection(conn)
 	if err != nil {
-		log.Printf("Failed to store connection: %v", err)
+		log.Printf("[ERROR] ConnectStrava: Failed to store connection: %v", err)
 		http.Error(w, "Failed to store connection", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Strava connection created for athlete %d", createdConn.StravaAthleteID)
+	log.Printf("[INFO] ConnectStrava: Created connection for athlete %d (tokens encrypted)", createdConn.StravaAthleteID)
 
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")

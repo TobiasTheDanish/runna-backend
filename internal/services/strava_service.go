@@ -3,8 +3,10 @@ package services
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
+	"github.com/thc/runna-backend/internal/crypto"
 	"github.com/thc/runna-backend/internal/database"
 	"github.com/thc/runna-backend/internal/models"
 )
@@ -214,27 +216,56 @@ func (s *StravaService) ProcessAthleteDeauthorized(athleteID int64) error {
 }
 
 // ensureValidToken checks if token is expired and refreshes if necessary
+// Returns the decrypted access token ready for use
 func (s *StravaService) ensureValidToken(conn *models.StravaConnection) (string, error) {
+	encryptionKey := os.Getenv("ENCRYPTION_KEY")
+	if encryptionKey == "" {
+		return "", fmt.Errorf("ENCRYPTION_KEY not set")
+	}
+
+	// Decrypt the access token
+	accessToken, err := crypto.Decrypt(conn.AccessToken, encryptionKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt access token: %w", err)
+	}
+
 	// Check if token is expired or expires soon (within 5 minutes)
 	if time.Now().Add(5 * time.Minute).Before(conn.TokenExpiresAt) {
-		// Token is still valid
-		return conn.AccessToken, nil
+		// Token is still valid, return decrypted token
+		return accessToken, nil
 	}
 
 	log.Printf("Token expired or expiring soon, refreshing for athlete %d", conn.StravaAthleteID)
 
-	// Refresh token
-	tokenResp, err := s.client.RefreshToken(conn.RefreshToken)
+	// Decrypt refresh token for API call
+	refreshToken, err := crypto.Decrypt(conn.RefreshToken, encryptionKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt refresh token: %w", err)
+	}
+
+	// Refresh token with Strava API
+	tokenResp, err := s.client.RefreshToken(refreshToken)
 	if err != nil {
 		return "", fmt.Errorf("failed to refresh token: %w", err)
 	}
 
-	// Update tokens in database
+	// Encrypt new tokens before storing
+	encryptedAccessToken, err := crypto.Encrypt(tokenResp.AccessToken, encryptionKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt new access token: %w", err)
+	}
+
+	encryptedRefreshToken, err := crypto.Encrypt(tokenResp.RefreshToken, encryptionKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt new refresh token: %w", err)
+	}
+
+	// Update encrypted tokens in database
 	expiresAt := time.Unix(tokenResp.ExpiresAt, 0)
 	err = s.db.UpdateStravaTokens(
 		conn.StravaAthleteID,
-		tokenResp.AccessToken,
-		tokenResp.RefreshToken,
+		encryptedAccessToken,
+		encryptedRefreshToken,
 		expiresAt,
 	)
 	if err != nil {
@@ -242,5 +273,6 @@ func (s *StravaService) ensureValidToken(conn *models.StravaConnection) (string,
 	}
 
 	log.Printf("Token refreshed successfully for athlete %d", conn.StravaAthleteID)
+	// Return the new decrypted access token
 	return tokenResp.AccessToken, nil
 }
